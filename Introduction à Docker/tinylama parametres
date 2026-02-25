@@ -1,0 +1,4 @@
+temperature 0.2
+top_p 0.5
+max_tokens 150
+repeat_penalty 1.2

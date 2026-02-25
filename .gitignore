@@ -1,0 +1,4 @@
+*.tfvars
+openrc.sh
+.terraform/
+.terraform.lock.hcl

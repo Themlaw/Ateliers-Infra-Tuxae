@@ -1,0 +1,45 @@
+name: PROJET-n #Pour éviter des conflits docker si plusieurs user sur même vm
+
+services:
+  openwebui:
+    image: ghcr.io/open-webui/open-webui:main
+    #container_name: openwebui #A éviter si plusieurs user
+    labels:
+      # 1. Autoriser Traefik à exposer ce conteneur
+      - "traefik.enable=true"
+
+      # 2. Définir la règle de routage (le nom de domaine)
+      - "traefik.http.routers.ROUTER_NAME.rule=Host(`owui-n.docker-1.themlaw.dev`)" #changer ROUTER_name par le nom effectif du routeur
+
+      # 3. Forcer l'utilisation du point d'entrée HTTPS défini dans ta configuration
+      - "traefik.http.routers.ROUTER_NAME.entrypoints=websecure"
+
+      # 4. Assigner le résolveur Let's Encrypt pour générer le certificat
+      - "traefik.http.routers.ROUTER_NAME.tls.certresolver=myresolver"
+
+      # 5. Spécifier le port interne d'Open WebUI (indispensable pour éviter une erreur 502)
+      - "traefik.http.services.ROUTER_NAME.loadbalancer.server.port=8080"
+    volumes:
+      - open-webui:/app/backend/data
+    networks:
+      - external
+    env_file:
+      - .env
+
+  ollama: #docker exec -it ollama ollama pull tinyllama
+    image: ollama/ollama:latest
+    #container_name: ollama
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "11434:11434"
+    networks:
+      - external
+
+volumes:
+  open-webui:
+  ollama_data:
+networks:
+  external:
+    name: traefik
+    external: true

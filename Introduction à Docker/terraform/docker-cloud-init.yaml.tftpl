@@ -1,0 +1,69 @@
+#cloud-config
+disable_root: false
+ssh_pwauth: true
+chpasswd:
+  list: |
+    root:${root_password}
+  expire: false
+
+write_files:
+  # Configuration Fail2ban pour SSH (10 tentatives)
+  - path: /etc/fail2ban/jail.d/99-sshd-custom.local
+    content: |
+      [sshd]
+      enabled = true
+      port = ssh
+      filter = sshd
+      logpath = /var/log/auth.log
+      maxretry = 10
+      bantime = 3600
+
+  # Fichier docker-compose pour Traefik
+  - path: /root/traefik/docker-compose.yml
+    content: |
+      services:
+        traefik:
+          image: traefik:latest
+          container_name: traefik
+          restart: unless-stopped
+          ports:
+            - "80:80"
+            - "443:443"
+          volumes:
+            - /var/run/docker.sock:/var/run/docker.sock:ro
+            - ./letsencrypt:/letsencrypt
+          command:
+            - "--api.dashboard=true"
+            - "--providers.docker=true"
+            - "--providers.docker.exposedbydefault=false"
+            - "--entrypoints.web.address=:80"
+            - "--entrypoints.websecure.address=:443"
+            - "--entrypoints.web.http.redirections.entryPoint.to=websecure"
+            - "--entrypoints.web.http.redirections.entryPoint.scheme=https"
+            - "--certificatesresolvers.myresolver.acme.httpchallenge=true"
+            - "--certificatesresolvers.myresolver.acme.httpchallenge.entrypoint=web"
+            - "--certificatesresolvers.myresolver.acme.email=${admin_email}"
+            - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
+          networks:
+            - external
+      networks:
+        external:
+          name: traefik
+runcmd:
+  # Installation des prérequis
+  - apt-get update
+  - apt-get install -y fail2ban curl
+
+  # Activation des accès SSH root
+  - echo "PermitRootLogin yes" > /etc/ssh/sshd_config.d/99-root-login.conf
+  - echo "PasswordAuthentication yes" >> /etc/ssh/sshd_config.d/99-root-login.conf
+  - systemctl restart sshd
+
+  # Redémarrage de Fail2ban pour prendre en compte la nouvelle conf
+  - systemctl enable --now fail2ban
+  - systemctl restart fail2ban
+
+  # Installation et lancement de Docker/Traefik
+  - curl -fsSL https://get.docker.com -o get-docker.sh
+  - sh get-docker.sh
+  - cd /root/traefik && docker compose up -d

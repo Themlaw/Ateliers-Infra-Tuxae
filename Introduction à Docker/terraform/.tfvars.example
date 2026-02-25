@@ -1,0 +1,20 @@
+# --- Cloudflare ---
+cloudflare_api_token = "votre_token_cloudflare_ici"
+cloudflare_zone_id   = "votre_zone_id_cloudflare_ici"
+# domain_name        = "themlaw.dev"
+
+# --- API OVH ---
+OVH_ENDPOINT           = "ovh-eu"
+OVH_APPLICATION_KEY    = "votre_ovh_application_key"
+OVH_APPLICATION_SECRET = "votre_ovh_application_secret"
+OVH_CONSUMER_KEY       = "votre_ovh_consumer_key"
+
+# --- OpenStack / OVH Public Cloud ---
+OPENSTACK_TENANT_NAME = "3362665624395991"
+OPENSTACK_USER_NAME   = "user-4ZzCYTBpxqg3"
+OPENSTACK_REGION      = "EU-WEST-PAR"
+OPEN_STACK_PASSWORD   = "votre_mot_de_passe_openstack_ici"
+
+# --- Paramètres de l'Atelier (Optionnel) ---
+# participant_count = 2
+# allowed_tcp_ports = [22, 80, 443]

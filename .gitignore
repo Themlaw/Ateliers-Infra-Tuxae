@@ -2,4 +2,4 @@
 openrc.sh
 .terraform/
 .terraform.lock.hcl
-.idea
+.idea/

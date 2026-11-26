@@ -11,6 +11,19 @@ chpasswd:
       type: text
 
 write_files:
+  - path: /home/eleve/docker-run.txt
+    owner: eleve:eleve
+    permissions: "0644"
+    defer: true
+    content: |
+%{ if jeu == "minecraft" ~}
+      docker run -d --name jeu -p 25565:25565 -e EULA=TRUE -e TYPE=PAPER \
+        -e VERSION=${minecraft_version} -e MEMORY=1G -e UID=$(id -u) -e GID=$(id -g) \
+        -v ~/jeu:/data --restart unless-stopped itzg/minecraft-server
+%{ else ~}
+      docker run -dit --name jeu --user $(id -u):$(id -g) -p 25565:25565 \
+        -v ~/jeu:/data --restart unless-stopped tuxae/mcgalaxy
+%{ endif ~}
   - path: /etc/nftables.conf
     permissions: "0644"
     content: |
@@ -81,8 +94,7 @@ runcmd:
   - [systemctl, enable, --now, nftables]
   - [bash, -c, 'if [ "${jeu}" = "minecraft" ] && [ ! -e /home/eleve/jeu/server.properties ]; then mkdir -p /home/eleve/jeu && cp -a /opt/atelier/mc-seed/. /home/eleve/jeu/ ; fi']
   - [bash, -c, 'mkdir -p /home/eleve/jeu && chown -R eleve:eleve /home/eleve/jeu']
-  - [bash, -c, 'cd /home/eleve/missions && for n in 4-serveur 5-config; do mv -f "$n-${jeu}.txt" "$n.txt"; done; rm -f ./*-minecraft.txt ./*-classicube.txt']
-  - [bash, -c, 'chown -R eleve:eleve /home/eleve/missions']
+  - [rm, -rf, /home/eleve/missions]
   - [systemctl, restart, alloy]
   - [systemctl, restart, ttyd]
   - [systemctl, restart, fail2ban]

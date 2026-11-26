@@ -1,5 +1,6 @@
 config.tfvars
 identifiants.csv
+mots-de-passe.csv
 fiches.html
 ansible/generated/*
 !ansible/generated/.gitkeep

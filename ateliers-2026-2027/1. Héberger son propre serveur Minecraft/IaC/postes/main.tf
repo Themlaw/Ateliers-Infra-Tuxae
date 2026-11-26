@@ -154,6 +154,21 @@ resource "local_sensitive_file" "identifiants_csv" {
   ))
 }
 
+resource "local_sensitive_file" "mots_de_passe_csv" {
+  filename        = "${path.module}/../mots-de-passe.csv"
+  file_permission = "0600"
+  content = join("\n", concat(
+    ["Prénom,Poste,SSH,Terminal,Mot de passe"],
+    [for p in local.liste : join(",", [
+      "",
+      p.nom,
+      "ssh eleve@${p.nom}.${local.domain}",
+      "https://term-${p.num}.${local.domain}",
+      p.password,
+    ])]
+  ))
+}
+
 resource "local_sensitive_file" "fiches_html" {
   filename        = "${path.module}/../fiches.html"
   file_permission = "0600"

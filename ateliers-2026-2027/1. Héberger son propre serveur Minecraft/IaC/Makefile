@@ -44,7 +44,7 @@ detruire: verif
 	cd postes && $(TOFU) destroy -var-file=$(VARS) $(NVAR)
 	rm -f postes/regions.auto.tfvars.json
 	cd ansible && ansible-playbook routes.yml -e vider=true
-	rm -f identifiants.csv fiches.html
+	rm -f identifiants.csv mots-de-passe.csv fiches.html
 
 etat:
 	cd postes && $(TOFU) output postes

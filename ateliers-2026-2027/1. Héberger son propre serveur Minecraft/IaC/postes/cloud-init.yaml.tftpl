@@ -76,6 +76,7 @@ write_files:
       }
 
 runcmd:
+  - [sed, -i, '/Pour commencer/,$d', /etc/motd]
   - [bash, -c, 'command -v nft >/dev/null || DEBIAN_FRONTEND=noninteractive apt-get install -y nftables']
   - [systemctl, enable, --now, nftables]
   - [bash, -c, 'if [ "${jeu}" = "minecraft" ] && [ ! -e /home/eleve/jeu/server.properties ]; then mkdir -p /home/eleve/jeu && cp -a /opt/atelier/mc-seed/. /home/eleve/jeu/ ; fi']

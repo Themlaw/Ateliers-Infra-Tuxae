@@ -1,0 +1,12 @@
+[Unit]
+Description=Atelier : programme mystère de la mission 3
+After=multi-user.target
+
+[Service]
+User=eleve
+Nice=19
+ExecStart=/usr/local/bin/calcul-mystere
+Restart=no
+
+[Install]
+WantedBy=multi-user.target

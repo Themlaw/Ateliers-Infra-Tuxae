@@ -1,0 +1,41 @@
+- name: Routes des postes sur la régie
+  hosts: regie
+  become: true
+  vars:
+    regie_dir: /opt/regie
+    reset_mur: false
+    vider: false
+
+  tasks:
+    - name: Routes Traefik des postes
+      ansible.builtin.copy:
+        src: generated/traefik-postes.yml
+        dest: "{{ regie_dir }}/traefik/dynamic/postes.yml"
+        mode: "0644"
+      when: not (vider | bool)
+
+    - name: Liste des postes pour le mur
+      ansible.builtin.copy:
+        src: generated/postes.json
+        dest: "{{ regie_dir }}/mur/data/postes.json"
+        mode: "0644"
+      when: not (vider | bool)
+
+    - name: Retirer les routes des postes
+      ansible.builtin.file:
+        path: "{{ regie_dir }}/traefik/dynamic/postes.yml"
+        state: absent
+      when: vider | bool
+
+    - name: Vider la liste des postes du mur
+      ansible.builtin.copy:
+        content: '{"jeu": "", "domain": "", "postes": []}'
+        dest: "{{ regie_dir }}/mur/data/postes.json"
+        mode: "0644"
+      when: vider | bool
+
+    - name: Remettre le mur à zéro
+      ansible.builtin.file:
+        path: "{{ regie_dir }}/mur/data/progress.db"
+        state: absent
+      when: reset_mur | bool

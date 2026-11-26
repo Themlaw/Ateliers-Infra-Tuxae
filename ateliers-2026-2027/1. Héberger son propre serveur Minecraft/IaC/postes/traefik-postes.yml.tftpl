@@ -1,0 +1,64 @@
+http:
+  routers:
+    jeu:
+      rule: "Host(`jeu.${domain}`)"
+      entryPoints: [websecure]
+%{ if jeu == "classicube" ~}
+      service: classicube
+%{ else ~}
+      service: mcweb
+%{ endif ~}
+      tls:
+        certResolver: le
+        domains:
+          - main: "${domain}"
+            sans: ["*.${domain}"]
+%{ for p in postes ~}
+    term-${p.num}:
+      rule: "Host(`term-${p.num}.${domain}`)"
+      entryPoints: [websecure]
+      service: term-${p.num}
+      tls:
+        certResolver: le
+        domains:
+          - main: "${domain}"
+            sans: ["*.${domain}"]
+    jeu-${p.num}:
+      rule: "Host(`jeu-${p.num}.${domain}`)"
+      entryPoints: [websecure]
+%{ if jeu == "classicube" ~}
+      service: jeu-${p.num}
+%{ else ~}
+      service: mcweb
+      middlewares: [jeu-${p.num}-redir]
+%{ endif ~}
+      tls:
+        certResolver: le
+        domains:
+          - main: "${domain}"
+            sans: ["*.${domain}"]
+%{ endfor ~}
+%{ if jeu != "classicube" ~}
+
+  middlewares:
+%{ for p in postes ~}
+    jeu-${p.num}-redir:
+      redirectRegex:
+        regex: "^https://jeu-${p.num}\\.[^/]+/?$"
+        replacement: "https://jeu.${domain}/?ip=poste-${p.num}.${domain}&version=${minecraft_version}"
+%{ endfor ~}
+%{ endif ~}
+
+  services:
+%{ for p in postes ~}
+    term-${p.num}:
+      loadBalancer:
+        servers:
+          - url: "http://${p.ip}:7681"
+%{ if jeu == "classicube" ~}
+    jeu-${p.num}:
+      loadBalancer:
+        servers:
+          - url: "http://${p.ip}:25565"
+%{ endif ~}
+%{ endfor ~}

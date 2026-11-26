@@ -1,0 +1,87 @@
+#cloud-config
+hostname: ${poste}
+fqdn: ${poste}.${domain}
+
+ssh_pwauth: true
+chpasswd:
+  expire: false
+  users:
+    - name: eleve
+      password: "${password}"
+      type: text
+
+write_files:
+  - path: /etc/nftables.conf
+    permissions: "0644"
+    content: |
+      #!/usr/sbin/nft -f
+      table inet atelier
+      delete table inet atelier
+      table inet atelier {
+        chain input {
+          type filter hook input priority 0; policy drop;
+          ct state established,related accept
+          iif lo accept
+          iifname "docker0" accept
+          iifname "br-*" accept
+          meta l4proto { icmp, ipv6-icmp } accept
+          tcp dport 22 accept
+          ip saddr ${regie_ip} tcp dport { 7681, 25565 } accept
+        }
+        chain forward {
+          type filter hook forward priority -10; policy accept;
+          tcp dport 25565 ct state new ip saddr != ${regie_ip} drop
+        }
+      }
+
+  - path: /etc/atelier/env
+    permissions: "0644"
+    content: |
+      POSTE=${poste}
+      DOMAIN=${domain}
+      REGIE_URL=https://mur.${domain}
+      TOKEN=${token}
+      JEU=${jeu}
+      MC_VERSION=${minecraft_version}
+%{ if tls_insecure ~}
+      TLS_INSECURE=1
+%{ endif ~}
+
+  - path: /etc/alloy/config.alloy
+    permissions: "0640"
+    owner: root:alloy
+    content: |
+      prometheus.exporter.unix "node" { }
+
+      prometheus.scrape "node" {
+        targets         = prometheus.exporter.unix.node.targets
+        forward_to      = [prometheus.remote_write.regie.receiver]
+        scrape_interval = "15s"
+      }
+
+      prometheus.remote_write "regie" {
+        external_labels = { poste = "${poste}" }
+        endpoint {
+          url = "https://metrics.${domain}/api/v1/write"
+          basic_auth {
+            username = "${rw_user}"
+            password = "${rw_password}"
+          }
+%{ if tls_insecure ~}
+          tls_config {
+            insecure_skip_verify = true
+          }
+%{ endif ~}
+        }
+      }
+
+runcmd:
+  - [bash, -c, 'command -v nft >/dev/null || DEBIAN_FRONTEND=noninteractive apt-get install -y nftables']
+  - [systemctl, enable, --now, nftables]
+  - [bash, -c, 'if [ "${jeu}" = "minecraft" ] && [ ! -e /home/eleve/jeu/server.properties ]; then mkdir -p /home/eleve/jeu && cp -a /opt/atelier/mc-seed/. /home/eleve/jeu/ ; fi']
+  - [bash, -c, 'mkdir -p /home/eleve/jeu && chown -R eleve:eleve /home/eleve/jeu']
+  - [bash, -c, 'cd /home/eleve/missions && for n in 4-serveur 5-config; do mv -f "$n-${jeu}.txt" "$n.txt"; done; rm -f ./*-minecraft.txt ./*-classicube.txt']
+  - [bash, -c, 'chown -R eleve:eleve /home/eleve/missions']
+  - [systemctl, restart, alloy]
+  - [systemctl, restart, ttyd]
+  - [systemctl, restart, fail2ban]

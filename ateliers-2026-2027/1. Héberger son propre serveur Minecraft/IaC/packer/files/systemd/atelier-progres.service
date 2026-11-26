@@ -1,0 +1,6 @@
+[Unit]
+Description=Atelier : détecte les missions faites et les coche sur le mur
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/atelier-progres

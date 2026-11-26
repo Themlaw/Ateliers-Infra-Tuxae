@@ -1,0 +1,77 @@
+services:
+  traefik:
+    image: traefik:v3.2
+    restart: unless-stopped
+    command:
+      - --providers.file.directory=/etc/traefik/dynamic
+      - --providers.file.watch=true
+      - --entrypoints.web.address=:80
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      - --entrypoints.websecure.address=:443
+      - --certificatesresolvers.le.acme.email={{ acme_email }}
+      - --certificatesresolvers.le.acme.storage=/letsencrypt/acme.json
+      - --certificatesresolvers.le.acme.dnschallenge.provider=cloudflare
+      - --certificatesresolvers.le.acme.dnschallenge.resolvers=1.1.1.1:53,8.8.8.8:53
+{% if acme_staging %}
+      - --certificatesresolvers.le.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory
+{% endif %}
+      - --log.level=INFO
+      - --accesslog=false
+    env_file: .env
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./traefik/dynamic:/etc/traefik/dynamic:ro
+      - ./letsencrypt:/letsencrypt
+
+  mur:
+    build: ./mur
+    restart: unless-stopped
+    environment:
+      MUR_ADMIN_PASSWORD: "{{ mur_admin_password }}"
+    volumes:
+      - ./mur/data:/data
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=30d
+      - --web.enable-remote-write-receiver
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+
+  grafana:
+    image: grafana/grafana:11.3.1
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: "{{ grafana_admin_password }}"
+      GF_SERVER_ROOT_URL: "https://grafana.{{ domain }}"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+
+  classicube:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    volumes:
+      - ./classicube:/usr/share/nginx/html:ro
+
+{% if build_mcweb %}
+  mcweb:
+    build: ./mcweb
+    restart: unless-stopped
+    volumes:
+      - ./mcweb-public:/app/public:ro
+{% endif %}
+
+volumes:
+  prometheus-data:
+  grafana-data:

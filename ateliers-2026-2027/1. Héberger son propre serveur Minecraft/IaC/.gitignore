@@ -1,0 +1,16 @@
+config.tfvars
+identifiants.csv
+fiches.html
+ansible/generated/*
+!ansible/generated/.gitkeep
+
+**/.terraform/
+**/.terraform.lock.hcl
+**/terraform.tfstate
+**/terraform.tfstate.backup
+packer_cache/
+packer/*.auto.pkrvars.hcl
+openrc.sh
+*.pyc
+__pycache__/
+postes/regions.auto.tfvars.json

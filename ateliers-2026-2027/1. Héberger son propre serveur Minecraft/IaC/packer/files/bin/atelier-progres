@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+set -uo pipefail
+[ -r /etc/atelier/env ] || exit 0          # pas encore configuré par cloud-init
+source /etc/atelier/env
+
+ETAT=/var/lib/atelier
+HOME_E=/home/eleve
+HIST="$HOME_E/.bash_history"
+install -d -m 0700 "$ETAT/faites"
+
+hist() { [ -f "$HIST" ] && grep -qE "$1" "$HIST"; }
+fait() { [ -e "$ETAT/faites/$1" ]; }
+
+if [ "$JEU" = "minecraft" ]; then PROPS="$HOME_E/jeu/server.properties"; else PROPS="$HOME_E/jeu/properties/server.properties"; fi
+motd() { [ -f "$PROPS" ] && sed -nE 's/^motd *= *//p' "$PROPS" | head -n1; }
+
+if [ ! -e "$ETAT/motd-initial" ] && [ -f "$PROPS" ]; then motd > "$ETAT/motd-initial"; fi
+
+verifier() {
+  case "$1" in
+    1) hist '(^| )(cat|less) .*os-release|(^| )cd( |$)' ;;
+    2) hist 'grep.*access\.log' ;;
+    3) [ "$(systemctl show -p ActiveEnterTimestampMonotonic --value calcul-mystere)" != "0" ] &&
+       ! systemctl is-active -q calcul-mystere ;;
+    4) docker ps --filter name='^jeu$' --filter status=running -q | grep -q . ;;
+    5) local m; m="$(motd)"
+       [ -n "$m" ] && [ -e "$ETAT/motd-initial" ] && [ "$m" != "$(cat "$ETAT/motd-initial")" ] &&
+       [ "$m" != "A Minecraft Server" ] ;;
+    6) hist 'auth\.log|fail2ban-client|nft list' ;;
+  esac
+}
+
+pseudo=""
+if docker ps -q --filter name='^jeu$' | grep -q .; then
+  pseudo="$(docker logs jeu 2>&1 | sed -nE 's/.*: ([A-Za-z0-9_]{2,16}) (joined the game|\(.*\) connected).*/\1/p' | head -n1)"
+fi
+[ -n "$pseudo" ] && [ "$pseudo" != "$(cat "$ETAT/pseudo" 2>/dev/null)" ] && echo "$pseudo" > "$ETAT/pseudo" && rm -f "$ETAT/pseudo-envoye"
+
+envoyer() {
+  local payload
+  payload=$(jq -n --arg poste "$POSTE" --arg token "$TOKEN" --argjson quete "$1" --arg pseudo "$pseudo" \
+    '{poste: $poste, token: $token, quete: $quete, pseudo: $pseudo}')
+  curl -fsS -m 5 ${TLS_INSECURE:+-k} -X POST "$REGIE_URL/api/valider" \
+    -H 'content-type: application/json' -d "$payload" >/dev/null
+}
+
+for n in 1 2 3 4 5 6; do
+  fait "$n" && continue
+  verifier "$n" && envoyer "$n" && touch "$ETAT/faites/$n"
+done
+
+if [ -n "$pseudo" ] && [ ! -e "$ETAT/pseudo-envoye" ]; then
+  premiere="$(ls "$ETAT/faites" | sort -n | head -n1)"
+  [ -n "$premiere" ] && envoyer "$premiere" && touch "$ETAT/pseudo-envoye"
+fi
+exit 0

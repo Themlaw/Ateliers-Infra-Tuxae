@@ -1,0 +1,200 @@
+- name: Régie de l'atelier
+  hosts: regie
+  become: true
+  gather_facts: false
+  vars_files:
+    - generated/regie_vars.yml
+  vars:
+    regie_dir: /opt/regie
+    build_mcweb: true # client Minecraft web (long à construire : ~10 min la première fois)
+    mcweb_repo: https://github.com/zardoy/minecraft-web-client.git
+    mcweb_version: f52a5a225147c60a36c3f328fae170da08530f34
+
+  tasks:
+    - name: Attendre que la VM réponde
+      ansible.builtin.wait_for_connection:
+        timeout: 300
+
+    - name: Collecter les faits
+      ansible.builtin.setup:
+
+    - name: Attendre la fin de cloud-init
+      ansible.builtin.command: cloud-init status --wait
+      changed_when: false
+
+    - name: Fichier d'échange de 4 Go
+      ansible.builtin.shell: |
+        set -e
+        if [ ! -f /swapfile ]; then
+          fallocate -l 4G /swapfile && chmod 600 /swapfile && mkswap /swapfile
+          echo '/swapfile none swap sw 0 0' >> /etc/fstab
+        fi
+        swapon --show | grep -q /swapfile || swapon /swapfile
+      changed_when: false
+
+    - name: Paquets
+      ansible.builtin.apt:
+        name: [docker.io, docker-compose-v2, apache2-utils, git]
+        state: present
+        update_cache: true
+
+    - name: Docker démarré
+      ansible.builtin.service:
+        name: docker
+        state: started
+        enabled: true
+
+    - name: Dossiers
+      ansible.builtin.file:
+        path: "{{ regie_dir }}/{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - traefik/dynamic
+        - mur/data
+        - prometheus
+        - grafana
+        - classicube/static
+
+    - name: Dossier des certificats (privé)
+      ansible.builtin.file:
+        path: "{{ regie_dir }}/letsencrypt"
+        state: directory
+        mode: "0700"
+
+    - name: Mur de progression (code)
+      ansible.builtin.copy:
+        src: "files/mur/{{ item }}"
+        dest: "{{ regie_dir }}/mur/{{ item }}"
+        mode: "0644"
+      loop: [app.py, Dockerfile, requirements.txt]
+
+    - name: Prometheus
+      ansible.builtin.copy:
+        src: files/prometheus.yml
+        dest: "{{ regie_dir }}/prometheus/prometheus.yml"
+        mode: "0644"
+
+    - name: Grafana (source de données + tableau de bord)
+      ansible.builtin.copy:
+        src: files/grafana/
+        dest: "{{ regie_dir }}/grafana/"
+        mode: "0644"
+        directory_mode: "0755"
+
+    - name: Jeton Cloudflare pour Traefik (.env)
+      ansible.builtin.template:
+        src: templates/env.j2
+        dest: "{{ regie_dir }}/.env"
+        mode: "0600"
+      no_log: true
+
+    - name: Mot de passe des métriques (htpasswd bcrypt)
+      ansible.builtin.command: htpasswd -nbB "{{ rw_user }}" "{{ rw_password }}"
+      register: htpasswd
+      changed_when: false
+      no_log: true
+
+    - name: Routes fixes de Traefik
+      ansible.builtin.template:
+        src: templates/traefik-regie.yml.j2
+        dest: "{{ regie_dir }}/traefik/dynamic/regie.yml"
+        mode: "0644"
+      vars:
+        rw_htpasswd: "{{ htpasswd.stdout | trim }}"
+      no_log: true
+
+    - name: Postes vides au départ (remplis par make routes)
+      ansible.builtin.copy:
+        content: '{"jeu": "", "domain": "{{ domain }}", "postes": []}'
+        dest: "{{ regie_dir }}/mur/data/postes.json"
+        mode: "0644"
+        force: false
+
+    - name: ClassiCube — moteur du jeu
+      ansible.builtin.get_url:
+        url: https://cs.classicube.net/client/latest/ClassiCube.js
+        dest: "{{ regie_dir }}/classicube/static/classisphere.js"
+        mode: "0644"
+
+    - name: ClassiCube — textures par défaut
+      ansible.builtin.get_url:
+        url: https://classicube.net/static/default.zip
+        dest: "{{ regie_dir }}/classicube/static/default.zip"
+        mode: "0644"
+
+    - name: ClassiCube — page d'accueil
+      ansible.builtin.template:
+        src: templates/classicube-index.html.j2
+        dest: "{{ regie_dir }}/classicube/index.html"
+        mode: "0644"
+
+    - name: Minecraft web client — sources
+      ansible.builtin.git:
+        repo: "{{ mcweb_repo }}"
+        dest: "{{ regie_dir }}/mcweb"
+        depth: 1
+        version: "{{ mcweb_version }}"
+        force: true
+      when: build_mcweb | bool
+
+    - name: Minecraft web client — proxy limité aux postes
+      ansible.builtin.lineinfile:
+        path: "{{ regie_dir }}/mcweb/server.js"
+        insertafter: '^app\.use\(netApi\(\{$'
+        line: "  validate: async (req) => /^poste-\\d{2}\\.{{ domain | regex_escape }}$/i.test(String(req.body.host)) && String(req.body.port) === '25565', // atelier : postes seulement"
+      when: build_mcweb | bool
+
+    - name: Minecraft web client — dossier de surcharge
+      ansible.builtin.file:
+        path: "{{ regie_dir }}/mcweb-public"
+        state: directory
+        mode: "0755"
+      when: build_mcweb | bool
+
+    - name: docker-compose
+      ansible.builtin.template:
+        src: templates/compose.yml.j2
+        dest: "{{ regie_dir }}/compose.yml"
+        mode: "0600"
+      no_log: true
+
+    - name: Démarrer la régie (la construction du client Minecraft peut prendre ~10 min)
+      ansible.builtin.command: docker compose up -d --build --remove-orphans
+      args:
+        chdir: "{{ regie_dir }}"
+      async: 2400
+      poll: 20
+      changed_when: true
+
+    - name: Minecraft web client — config d'origine
+      ansible.builtin.command: docker compose exec -T mcweb cat dist/config.json
+      args:
+        chdir: "{{ regie_dir }}"
+      register: mcweb_config
+      changed_when: false
+      when: build_mcweb | bool
+
+    - name: Minecraft web client — proxy de la régie
+      ansible.builtin.copy:
+        dest: "{{ regie_dir }}/mcweb-public/config.json"
+        mode: "0644"
+        content: >-
+          {{ (mcweb_config.stdout | from_json) | combine({
+               'defaultProxy': 'https://jeu.' ~ domain,
+               'defaultProxies': ['https://jeu.' ~ domain],
+               'promoteServers': [],
+               'mapsProvider': '',
+               'p2pRelayServer': '',
+               'defaultSettings': {'rendererSmartCull': false},
+               'forceSettings': {'rendererSmartCull': true}
+             }, recursive=true) | to_nice_json }}
+      when: build_mcweb | bool
+
+    - name: Adresses
+      ansible.builtin.debug:
+        msg:
+          - "Mur      : https://mur.{{ domain }}"
+          - "Grafana  : https://grafana.{{ domain }}  (admin / grafana_admin_password)"
+          - "Jeu      : https://jeu.{{ domain }}  (actif après make routes)"
+          - "Certificat {{ 'de TEST (staging), le navigateur affichera une alerte' if acme_staging else 'Let s Encrypt réel' }}"

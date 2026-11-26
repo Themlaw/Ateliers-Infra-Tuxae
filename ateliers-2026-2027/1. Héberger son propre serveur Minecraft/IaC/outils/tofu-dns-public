@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+bin="$(readlink -f "$(command -v tofu)")"
+image="${TOFU_IMAGE:-alpine}"
+opts=(-i); [ -t 0 ] && [ -t 1 ] && opts+=(-t)
+exec docker run --rm "${opts[@]}" --dns 1.1.1.1 --dns 9.9.9.9 \
+  --user "$(id -u):$(id -g)" -e HOME="$HOME" -e TF_IN_AUTOMATION \
+  -v "$bin":/usr/local/bin/tofu:ro -v "$HOME":"$HOME" -w "$PWD" \
+  "$image" tofu "$@"

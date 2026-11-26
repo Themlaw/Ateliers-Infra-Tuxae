@@ -1,0 +1,32 @@
+
+os_auth_url     = "https://auth.cloud.ovh.net/v3"
+os_username     = "user-XXXXXXXXXXXX"
+os_password     = "CHANGE-MOI"
+os_project_id   = "0123456789abcdef0123456789abcdef"
+os_region       = "GRA11"
+os_ext_net_name = "Ext-Net"
+os_ext_net_id   = "00000000-0000-0000-0000-000000000000"
+
+cloudflare_api_token = "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+cloudflare_zone_id   = "00000000000000000000000000000000"
+
+dns_zone   = "tuxae.fr"
+dns_sub    = "atelier"
+acme_email = "infra@tuxae.fr"
+acme_staging = true
+
+admin_ssh_public_key       = "ssh-ed25519 AAAA... toi@laptop"
+admin_ssh_private_key_path = "~/.ssh/id_ed25519"
+admin_cidrs                = ["0.0.0.0/0"]
+regie_flavor               = "d2-8"
+grafana_admin_password     = "CHANGE-MOI"
+mur_admin_password         = "CHANGE-MOI"
+
+image_base_name  = "Ubuntu 24.04"
+image_poste_name = "atelier-poste"
+packer_flavor    = "d2-4"
+
+nb_postes         = 25
+poste_flavor      = "d2-4"
+jeu               = "classicube"
+minecraft_version = "1.21.4"

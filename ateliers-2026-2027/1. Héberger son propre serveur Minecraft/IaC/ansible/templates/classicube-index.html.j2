@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>Jeu — Atelier Infra Tuxae</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #0f1115; color: #e8e8e8; font-family: system-ui, sans-serif; }
+  label { display: block; margin: 14px 0 6px; }
+  input { width: 100%; box-sizing: border-box; padding: 10px; font-size: 16px; border-radius: 8px; border: 1px solid #444; background: #0f1115; color: #fff; }
+  button { margin-top: 18px; width: 100%; padding: 12px; font-size: 16px; border: 0; border-radius: 8px; background: #2e9e5b; color: #fff; cursor: pointer; }
+</style>
+</head>
+<body>
+<div id="choix">
+  <h1>Rejoindre un serveur</h1>
+  <label for="serveur">Numéro du poste (ex. 07)</label>
+  <input id="serveur" inputmode="numeric" maxlength="2">
+  <label for="pseudo">Ton pseudo</label>
+  <input id="pseudo" maxlength="16">
+  <button id="go">Jouer</button>
+</div>
+<canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
+<span id="logmsg"></span>
+
+<script>
+  // Domaine de l'atelier : jeu-NN.{{ domain }} est relayé par Traefik (WSS, port 443)
+  // vers le serveur MCGalaxy du poste NN, port 25565.
+  const DOMAINE = "{{ domain }}";
+  const params = new URLSearchParams(location.search);
+  if (params.get("serveur")) document.getElementById("serveur").value = params.get("serveur");
+
+  document.getElementById("go").onclick = function () {
+    let num = document.getElementById("serveur").value.trim().padStart(2, "0");
+    let pseudo = document.getElementById("pseudo").value.trim().replace(/[^A-Za-z0-9_]/g, "") || "Joueur";
+    document.getElementById("choix").style.display = "none";
+    const canvas = document.getElementById("canvas");
+    canvas.style.display = "block";
+
+    window.Module = {
+      preRun: [], postRun: [],
+      // [ pseudo, mppass, adresse du serveur, port ]
+      arguments: [pseudo, "", "jeu-" + num + "." + DOMAINE, "443"],
+      print: function (t) { console.log(t); },
+      printErr: function (t) { console.error(t); },
+      canvas: canvas,
+      setStatus: function (t) { document.getElementById("logmsg").textContent = t; },
+      totalDependencies: 0,
+      monitorRunDependencies: function (left) {
+        this.totalDependencies = Math.max(this.totalDependencies, left);
+        Module.setStatus(left ? "Chargement… (" + (this.totalDependencies - left) + "/" + this.totalDependencies + ")" : "");
+      }
+    };
+    const s = document.createElement("script");
+    s.src = "/static/classisphere.js";
+    s.async = true;
+    document.body.appendChild(s);
+  };
+</script>
+</body>
+</html>

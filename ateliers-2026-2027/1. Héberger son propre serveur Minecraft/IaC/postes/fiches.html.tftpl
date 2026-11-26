@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Fiches postes — atelier Tuxae</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 0; }
+  .grille { display: grid; grid-template-columns: repeat(2, 1fr); }
+  .fiche { border: 1px dashed #999; padding: 14px 18px; page-break-inside: avoid; }
+  .fiche h2 { margin: 0 0 8px; font-size: 20px; }
+  .fiche p { margin: 4px 0; font-size: 14px; }
+  code { font-size: 15px; background: #f2f2f2; padding: 1px 4px; }
+  @media print { .fiche { border-color: #666; } }
+</style>
+</head>
+<body>
+<div class="grille">
+%{ for p in postes ~}
+  <div class="fiche">
+    <h2>Poste ${p.num}</h2>
+    <p>Terminal : <code>term-${p.num}.${domain}</code></p>
+    <p>Utilisateur : <code>eleve</code> · Mot de passe : <code>${p.password}</code></p>
+%{ if jeu == "classicube" ~}
+    <p>Ton jeu : <code>jeu.${domain}/?serveur=${p.num}</code></p>
+%{ else ~}
+    <p>Ton jeu : <code>jeu-${p.num}.${domain}</code> (pas de compte Minecraft nécessaire)</p>
+%{ endif ~}
+    <p>Pour commencer : <code>cat ~/missions/LISEZMOI.txt</code></p>
+  </div>
+%{ endfor ~}
+</div>
+</body>
+</html>

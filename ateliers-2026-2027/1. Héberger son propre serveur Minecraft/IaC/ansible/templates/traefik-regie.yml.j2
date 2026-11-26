@@ -1,0 +1,58 @@
+http:
+  middlewares:
+    rw-auth:
+      basicAuth:
+        users:
+          - "{{ rw_htpasswd }}"
+
+  routers:
+    mur:
+      rule: "Host(`mur.{{ domain }}`)"
+      entryPoints: [websecure]
+      service: mur
+      tls:
+        certResolver: le
+        domains:
+          - main: "{{ domain }}"
+            sans: ["*.{{ domain }}"]
+    grafana:
+      rule: "Host(`grafana.{{ domain }}`)"
+      entryPoints: [websecure]
+      service: grafana
+      tls:
+        certResolver: le
+        domains:
+          - main: "{{ domain }}"
+            sans: ["*.{{ domain }}"]
+    metrics:
+      rule: "Host(`metrics.{{ domain }}`) && PathPrefix(`/api/v1/write`)"
+      entryPoints: [websecure]
+      middlewares: [rw-auth]
+      service: prometheus
+      tls:
+        certResolver: le
+        domains:
+          - main: "{{ domain }}"
+            sans: ["*.{{ domain }}"]
+
+  services:
+    mur:
+      loadBalancer:
+        servers:
+          - url: "http://mur:8000"
+    grafana:
+      loadBalancer:
+        servers:
+          - url: "http://grafana:3000"
+    prometheus:
+      loadBalancer:
+        servers:
+          - url: "http://prometheus:9090"
+    classicube:
+      loadBalancer:
+        servers:
+          - url: "http://classicube:80"
+    mcweb:
+      loadBalancer:
+        servers:
+          - url: "http://mcweb:8080"
